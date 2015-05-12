@@ -6,7 +6,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[clj-http "1.0.0"]
-                 [com.netflix.hystrix/hystrix-clj "1.3.18"]
+                 [com.netflix.hystrix/hystrix-clj "1.4.7"]
                  [org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [robert/hooke "1.3.0"]]
