@@ -13,6 +13,9 @@
 
   :env {:restdriver-port "8081"}
 
+  :repositories [["releases" {:url "https://clojars.org/repo"
+                              :creds :gpg}]]
+
   :profiles {:dev {:dependencies [[midje "1.6.3"]
                                   [org.slf4j/slf4j-simple "1.7.7"]]
                    :plugins [[lein-environ "1.0.0"]
