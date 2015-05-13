@@ -1,4 +1,4 @@
-# [clj-http-hystrix "0.1.0-SNAPSHOT"]
+# [clj-http-hystrix "0.1.0"]
 
 A Clojure library to wrap clj-http requests as [hystrix](https://github.com/Netflix/Hystrix) commands whenever a request options map includes `:hystrix/...` keys.
 
