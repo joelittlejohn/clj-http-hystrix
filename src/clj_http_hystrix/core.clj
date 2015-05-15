@@ -2,7 +2,6 @@
   (:require [clj-http.client :as http]
             [clojure.set :as set]
             [clojure.tools.logging :refer [warn error]]
-            [com.netflix.hystrix.core :as hystrix]
             [robert.hooke :as hooke])
   (:import [com.netflix.hystrix HystrixCommand HystrixThreadPoolProperties HystrixCommandProperties HystrixCommand$Setter HystrixCommandGroupKey$Factory HystrixCommandKey$Factory]
            [org.slf4j MDC]))
@@ -15,12 +14,17 @@
     :hystrix/queue-size
     :hystrix/timeout-ms})
 
-(defn default-fallback [req]
-  (let [e (.getFailedExecutionException hystrix/*command*)]
-    (warn e "hystrix clj-http request failed")
-    (if (-> (ex-data e) :object :status)
-      (-> (ex-data e) :object)
-      {:status 500})))
+(defn default-fallback [req this]
+  (.getFailedExecutionException this))
+
+(defn handle-exception
+  [f req]
+  (let [response (f)]
+    (if (instance? clojure.lang.ExceptionInfo response)
+      (if (:throw-exceptions req true)
+        (throw response)
+        (:object (.getData response)))
+      response)))
 
 (defn ^:private group-key [s]
   (HystrixCommandGroupKey$Factory/asKey (name s)))
@@ -64,12 +68,12 @@
                     (getFallback []
                       (log-error (:hystrix/command-key req) this)
                       (if (:hystrix/fallback-fn req)
-                        ((:hystrix/fallback-fn req) req)
-                        (default-fallback req)))
+                        ((:hystrix/fallback-fn req) req this)
+                        (default-fallback req this)))
                     (run []
                       (MDC/setContextMap logging-context)
-                      (f req)))]
-      (.execute command))
+                      (f (assoc req :throw-exceptions true))))]
+      (handle-exception #(.execute command) req))
     (f req)))
 
 (defn add-hook []
