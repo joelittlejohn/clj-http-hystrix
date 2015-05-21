@@ -1,35 +1,62 @@
 (ns clj-http-hystrix.core-test
   (:require [clj-http-hystrix.core :refer :all]
             [clj-http.client :as http]
+            [rest-cljer.core :refer [rest-driven]]
             [midje.sweet :refer :all]))
+
+(def url "http://localhost:8081/")
 
 (add-hook)
 
 (fact "hystrix wrapping with fallback"
-      (http/get "http://httpstat.us/400" {:throw-exceptions false
-                                          :hystrix/fallback-fn (constantly "foo")})
-      => "foo")
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400}]
+       (http/get url {:throw-exceptions false
+                      :hystrix/fallback-fn (constantly "foo")})
+       => "foo"))
 
 (fact "hystrix wrapping return successful call"
-      (-> (http/get "http://httpstat.us/200" {:throw-exceptions false
-                                              :hystrix/fallback-fn (constantly "foo")})
-          :status)
-      => 200)
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 200}]
+       (-> (http/get url {:throw-exceptions false
+                          :hystrix/fallback-fn (constantly "foo")})
+           :status)
+       => 200))
 
 (fact "hystrix wrapping with exceptions off"
-      (-> (http/get "http://httpstat.us/400" {:throw-exceptions false
-                                              :hystrix/command-key :foo}) :status)
-      => 400)
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400}]
+       (-> (http/get url {:throw-exceptions false
+                          :hystrix/command-key :foo}) :status)
+       => 400))
 
 (fact "hystrix wrapping with exceptions implicitly on"
-      (http/get "http://httpstat.us/400" {:hystrix/command-key :foo})
-      => (throws clojure.lang.ExceptionInfo "clj-http: status 400"))
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400}]
+       (http/get url {:hystrix/command-key :foo})
+       => (throws clojure.lang.ExceptionInfo "clj-http: status 400")))
 
 (fact "hystrix wrapping with exceptions explicitly on"
-      (http/get "http://httpstat.us/400" {:throw-exceptions true
-                                          :hystrix/command-key :foo})
-      => (throws clojure.lang.ExceptionInfo "clj-http: status 400"))
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400}]
+       (http/get url {:throw-exceptions true
+                      :hystrix/command-key :foo})
+       => (throws clojure.lang.ExceptionInfo "clj-http: status 400")))
 
 (fact "request with no hystrix key present"
-      (http/get "http://httpstat.us/500" {})
-      => (throws clojure.lang.ExceptionInfo "clj-http: status 500"))
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 500}]
+       (http/get url {})
+       => (throws clojure.lang.ExceptionInfo "clj-http: status 500")))
