@@ -4,7 +4,8 @@
             [clojure.tools.logging :refer [warn error]]
             [robert.hooke :as hooke])
   (:import [com.netflix.hystrix HystrixCommand HystrixThreadPoolProperties HystrixCommandProperties HystrixCommand$Setter HystrixCommandGroupKey$Factory HystrixCommandKey$Factory]
-           [org.slf4j MDC]))
+           [org.slf4j MDC]
+           [clojure.lang ExceptionInfo]))
 
 (def ^:private ^:const hystrix-keys
   #{:hystrix/fallback-fn
@@ -20,10 +21,15 @@
 (defn handle-exception
   [f req]
   (let [response (f)]
-    (if (instance? clojure.lang.ExceptionInfo response)
-      (if (:throw-exceptions req true)
-        (throw response)
-        (:object (.getData response)))
+    (if (instance? Throwable response)
+      (do
+        (when (:throw-exceptions req true)
+          (throw response))
+        (if (instance? ExceptionInfo response)
+          (:object (.getData response))
+          (with-meta {:status 503
+                      :body {:error (.getMessage response)}}
+            {:error response})))
       response)))
 
 (defn ^:private group-key [s]
