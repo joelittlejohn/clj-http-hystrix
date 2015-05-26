@@ -4,6 +4,7 @@
             [clojure.tools.logging :refer [warn error]]
             [robert.hooke :as hooke])
   (:import [com.netflix.hystrix HystrixCommand HystrixThreadPoolProperties HystrixCommandProperties HystrixCommand$Setter HystrixCommandGroupKey$Factory HystrixCommandKey$Factory]
+           [com.netflix.hystrix.exception HystrixBadRequestException]
            [org.slf4j MDC]
            [clojure.lang ExceptionInfo]))
 
@@ -13,16 +14,23 @@
     :hystrix/command-key
     :hystrix/threads
     :hystrix/queue-size
-    :hystrix/timeout-ms})
+    :hystrix/timeout-ms
+    :hystrix/bad-request-pred})
 
 (defn default-fallback [req this]
-  (.getFailedExecutionException this))
+  (if-let [exception (.getFailedExecutionException this)]
+    exception
+    (with-meta
+        {:status 503}
+        {:error this})))
 
 (defn handle-exception
   [f req]
-  (let [response (f)]
+  (let [response (try (f) (catch Exception e e))]
     (if (instance? Throwable response)
-      (do
+      (let [response (if (instance? HystrixBadRequestException response)
+                       (.getCause response)
+                       response)]
         (when (:throw-exceptions req true)
           (throw response))
         (if (instance? ExceptionInfo response)
@@ -63,12 +71,24 @@
       (error exception message)
       (error message))))
 
+(defn status-codes
+  [& status]
+  (fn [v]
+    (if (instance? ExceptionInfo v)
+      (reduce #(or %1 (= %2 (:status (:object (.getData v))))) false status))))
+
+(defn status-4xx?
+  [v]
+  (if (instance? ExceptionInfo v)
+    (< 399 (:status (:object (.getData v))) 500)))
+
 (defn wrap-hystrix
   "Wrap a clj-http client request with hystrix features (but only if a
   command-key is present in the options map)."
   [f req]
   (if (not-empty (select-keys req hystrix-keys))
-    (let [configurator (configurator req)
+    (let [bad-request-pred (req :hystrix/bad-request-pred)
+          configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
                     (getFallback []
@@ -78,7 +98,12 @@
                         (default-fallback req this)))
                     (run []
                       (MDC/setContextMap logging-context)
-                      (f (assoc req :throw-exceptions true))))]
+                      (try
+                        (f (assoc req :throw-exceptions true))
+                        (catch Exception e
+                          (if (and bad-request-pred (bad-request-pred e))
+                            (throw (HystrixBadRequestException. "Ignoring exception" e))
+                            (throw e))))))]
       (handle-exception #(.execute command) req))
     (f req)))
 

@@ -18,10 +18,14 @@ Whenever you make an http request, add one or more of the hystrix-clj options to
                                    :hystrix/group-key       :default
                                    :hystrix/threads         10
                                    :hystrix/queue-size      5
-                                   :hystrix/timeout-ms      600})
+                                   :hystrix/timeout-ms      600}}
 ```
-Any values not supplied will be set to their default values as above.
-
+Any values not supplied will be set to their default values as above. 
+Other hystrix options with no default are below:
+```clj
+:hystrix/bad-request-pred ; will test the Exception rasied with the given predicate. 
+                          ; If true will not cause hystrix to consider the call as failed.
+```
 
 Requests with no hystrix-related keys wont use hystrix.
 
