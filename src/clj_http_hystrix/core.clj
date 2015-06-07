@@ -92,6 +92,7 @@
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
                     (getFallback []
+                      (MDC/setContextMap logging-context)
                       (log-error (:hystrix/command-key req) this)
                       (if (:hystrix/fallback-fn req)
                         ((:hystrix/fallback-fn req) req this)

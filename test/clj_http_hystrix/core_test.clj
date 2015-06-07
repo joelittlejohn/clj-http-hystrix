@@ -92,7 +92,7 @@
          (:status response) => 503)))
 
 
-(fact "hystrix wrapping do not cause the switch to go off if predicate is true - testing lower bound of status-4xx?"
+(fact "hystrix wrapping does not cause the switch to go off if predicate is true - testing lower bound of status-4xx?"
       :long
       (rest-driven
        [{:method :GET
@@ -106,7 +106,7 @@
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key
                         :hystrix/bad-request-pred status-4xx?})
-         (Thread/sleep 10000)
+         (Thread/sleep 3000)
          (doseq [x (range 29)]
            (http/get url {:throw-exceptions false
                           :hystrix/command-key command-key
@@ -116,7 +116,7 @@
                             :hystrix/bad-request-pred status-4xx?})
              :status) => 400)))
 
-(fact "hystrix wrapping do not cause the switch to go off if predicate is true, but still throw exception - testing upper bound of status-4xx?"
+(fact "hystrix wrapping does not cause the switch to go off if predicate is true, but still throw exception - testing upper bound of status-4xx?"
       :long
       (rest-driven
        [{:method :GET
@@ -131,7 +131,7 @@
                              :hystrix/command-key command-key
                              :hystrix/bad-request-pred status-4xx?})
               (catch Exception e))
-         (Thread/sleep 10000)
+         (Thread/sleep 3000)
          (doseq [x (range 29)]
            (try (http/get url {:throw-exceptions true
                                :hystrix/command-key command-key
@@ -142,7 +142,7 @@
                         :hystrix/bad-request-pred status-4xx?})
          => (throws ExceptionInfo))))
 
-(fact "hystrix wrapping do not cause the switch to go off if predicate is true - test for specific status code"
+(fact "hystrix wrapping does not cause the switch to go off if predicate is true - test for specific status code"
       :long
       (rest-driven
        [{:method :GET
@@ -156,7 +156,7 @@
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key
                         :hystrix/bad-request-pred (status-codes 404)})
-         (Thread/sleep 10000)
+         (Thread/sleep 3000)
          (doseq [x (range 29)]
            (http/get url {:throw-exceptions false
                           :hystrix/command-key command-key
