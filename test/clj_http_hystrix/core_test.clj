@@ -1,11 +1,14 @@
 (ns clj-http-hystrix.core-test
   (:require [clj-http-hystrix.core :refer :all]
             [clj-http.client :as http]
+            [clojure.java.io :refer [resource]]
+            [clojure.tools.logging :refer [warn error]]
             [rest-cljer.core :refer [rest-driven]]
             [midje.sweet :refer :all])
   (:import [java.net SocketTimeoutException]
            [java.util UUID]
-           [clojure.lang ExceptionInfo]))
+           [clojure.lang ExceptionInfo]
+           [org.slf4j MDC]))
 
 (def url "http://localhost:8081/")
 
@@ -21,8 +24,20 @@
          :url "/"}
         {:status 400}]
        (http/get url {:throw-exceptions false
+                      :hystrix/command-key :wrapping-with-fallback
                       :hystrix/fallback-fn (constantly "foo")})
        => "foo"))
+
+(fact "hystrix wrapping with fallback - preserves the MDC Values"
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400}]
+       (MDC/put "pickles" "preserve")
+       (http/get url {:throw-exceptions false
+                      :hystrix/command-key :wrapping-with-fallback-preserves-MDC-values
+                      :hystrix/fallback-fn (fn [& z] (into {} (MDC/getCopyOfContextMap)))})
+       => (contains {"pickles" "preserve"})))
 
 (fact "hystrix wrapping return successful call"
       (rest-driven
@@ -30,6 +45,7 @@
          :url "/"}
         {:status 200}]
        (-> (http/get url {:throw-exceptions false
+                          :hystrix/command-key :wrapping-with-successful-call
                           :hystrix/fallback-fn (constantly "foo")})
            :status)
        => 200))
@@ -40,7 +56,7 @@
          :url "/"}
         {:status 400}]
        (-> (http/get url {:throw-exceptions false
-                          :hystrix/command-key :foo}) :status)
+                          :hystrix/command-key :wrapping-with-exceptions-off}) :status)
        => 400))
 
 (fact "hystrix wrapping with exceptions implicitly on"
@@ -48,7 +64,7 @@
        [{:method :GET
          :url "/"}
         {:status 400}]
-       (http/get url {:hystrix/command-key :foo})
+       (http/get url {:hystrix/command-key :wrapping-with-exceptions-implicitly-on})
        => (throws clojure.lang.ExceptionInfo "clj-http: status 400")))
 
 (fact "hystrix wrapping with exceptions explicitly on"
@@ -57,7 +73,7 @@
          :url "/"}
         {:status 400}]
        (http/get url {:throw-exceptions true
-                      :hystrix/command-key :foo})
+                      :hystrix/command-key :wrapping-with-exceptions-explicitly-on})
        => (throws clojure.lang.ExceptionInfo "clj-http: status 400")))
 
 (fact "request with no hystrix key present"
@@ -76,7 +92,7 @@
          :after 500}]
        (let [response (http/get url {:socket-timeout 100
                                      :throw-exceptions false
-                                     :hystrix/command-key :default})]
+                                     :hystrix/command-key :socket-timeout-check})]
          (:status response) => 503
          (:error (meta response)) => (instance-of SocketTimeoutException))))
 
@@ -88,7 +104,7 @@
          :after 1000}]
        (let [response (http/get url {:hystrix/timeout-ms 100
                                      :throw-exceptions false
-                                     :hystrix/command-key :socket})]
+                                     :hystrix/command-key :socket-timeout-original-error-in-meta-response})]
          (:status response) => 503)))
 
 
