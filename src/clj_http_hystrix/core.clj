@@ -23,7 +23,7 @@
     resp
     {:status 503}))
 
-(defn handle-exception
+(defn ^:private handle-exception
   [f req]
   (let [raw-response (try (f) (catch Exception e e))
         resp (if (instance? HystrixBadRequestException raw-response)
@@ -65,11 +65,15 @@
       (warn message))))
 
 (defn status-codes
+  "Create a predicate that returns true whenever one of the given 
+  status codes is present"
   [& status]
   (fn [req resp]
     (reduce #(or %1 (= %2 (:status resp))) false status)))
 
 (defn client-error?
+  "Returns true when the response has one of the 4xx family of status 
+  codes"
   [req resp]
   (http/client-error? resp))
 
