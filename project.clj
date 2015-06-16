@@ -9,7 +9,8 @@
                  [com.netflix.hystrix/hystrix-clj "1.4.7"]
                  [org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.logging "0.3.1"]
-                 [robert/hooke "1.3.0"]]
+                 [robert/hooke "1.3.0"]
+                 [slingshot "0.12.2"]]
 
   :env {:restdriver-port "8081"}
 
@@ -19,8 +20,7 @@
   :profiles {:dev {:dependencies [[midje "1.6.3"]
                                   [org.slf4j/slf4j-simple "1.7.7"]
                                   [rest-cljer "0.1.21" :exclusions [clj-http]]
-                                  [ch.qos.logback/logback-classic "1.1.3"]
-                                  ]
+                                  [ch.qos.logback/logback-classic "1.1.3"]]
                    :plugins [[lein-environ "1.0.0"]
                              [lein-midje "3.1.1"]]
                    :jvm-opts ["-Dhystrix.command.default.execution.isolation.thread.timeoutInMilliseconds=9999"]}})

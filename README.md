@@ -15,25 +15,21 @@ When you start your app, add:
 Whenever you make an http request, add one or more of the hystrix-clj options to your options map:
 
 ```clj
-(http/get "http://www.google.com" {:hystrix/command-key     :default
-                                   :hystrix/fallback-fn     default-fallback
-                                   :hystrix/group-key       :default
-                                   :hystrix/threads         10
-                                   :hystrix/queue-size      5
-                                   :hystrix/timeout-ms      600}}
+(http/get "http://www.google.com" {:hystrix/command-key      :default
+                                   :hystrix/fallback-fn      default-fallback
+                                   :hystrix/group-key        :default
+                                   :hystrix/threads          10
+                                   :hystrix/queue-size       5
+                                   :hystrix/timeout-ms       600
+                                   :hystrix/bad-request-pred client-error?}}
 ```
-Any values not supplied will be set to their default values as above. Requests with no Hystrix-related keys wont use Hystrix.
+Any values not supplied will be set to their default values as above. Requests with no Hystrix-related keys won't use Hystrix.
 
 ## Bad requests
 
 Hystrix allows some failures to be marked as bad requests, that is, requests that have failed because of a badly formed request rather than an error in the downstream service<sup>[1](https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation)</sup>. clj-http-hystrix allows a predicate to be supplied under the `:hystrix/bad-request-pred` key, and if this predicate returns `true` when given a response exception, then the failure will be considered a 'bad request' (and not counted towards the failure metrics for a command).
 
-By default, all failures are counted towards the failure metrics for a command. There are some useful predicates and predicate generators provided<sup>[2](https://github.com/joelittlejohn/clj-http-hystrix/blob/2811a183b93d53cb18c464197e31757cd9e4dcae/src/clj_http_hystrix/core.clj#L74)</sup><sup>[3](https://github.com/joelittlejohn/clj-http-hystrix/blob/2811a183b93d53cb18c464197e31757cd9e4dcae/src/clj_http_hystrix/core.clj#L80)</sup>, for example to treat the 4xx family of response codes as Hystrix bad requests:
-
-```clj
-(http/get "http://www.google.com" {:hystrix/command-key :foo
-                                   :hystrix/bad-request-pred status-4xx?}}
-```
+By default, all failures are counted towards the failure metrics for a command. There are some useful predicates and predicate generators provided<sup>[2](https://github.com/joelittlejohn/clj-http-hystrix/blob/2811a183b93d53cb18c464197e31757cd9e4dcae/src/clj_http_hystrix/core.clj#L74)</sup><sup>[3](https://github.com/joelittlejohn/clj-http-hystrix/blob/2811a183b93d53cb18c464197e31757cd9e4dcae/src/clj_http_hystrix/core.clj#L80)</sup>, the default is to treat the 4xx family of response codes (client errors) as Hystrix bad requests.
 
 ## License
 

@@ -2,11 +2,12 @@
   (:require [clj-http.client :as http]
             [clojure.set :as set]
             [clojure.tools.logging :refer [warn error]]
-            [robert.hooke :as hooke])
+            [robert.hooke :as hooke]
+            [slingshot.slingshot :refer [get-thrown-object]]
+            [slingshot.support :refer [wrap stack-trace]])
   (:import [com.netflix.hystrix HystrixCommand HystrixThreadPoolProperties HystrixCommandProperties HystrixCommand$Setter HystrixCommandGroupKey$Factory HystrixCommandKey$Factory]
            [com.netflix.hystrix.exception HystrixBadRequestException]
-           [org.slf4j MDC]
-           [clojure.lang ExceptionInfo]))
+           [org.slf4j MDC]))
 
 (def ^:private ^:const hystrix-keys
   #{:hystrix/fallback-fn
@@ -17,28 +18,20 @@
     :hystrix/timeout-ms
     :hystrix/bad-request-pred})
 
-(defn default-fallback [req this]
-  (if-let [exception (.getFailedExecutionException this)]
-    exception
-    (with-meta
-        {:status 503}
-        {:error this})))
+(defn default-fallback [req resp]
+  (if (:status resp)
+    resp
+    {:status 503}))
 
 (defn handle-exception
   [f req]
-  (let [response (try (f) (catch Exception e e))]
-    (if (instance? Throwable response)
-      (let [response (if (instance? HystrixBadRequestException response)
-                       (.getCause response)
-                       response)]
-        (when (:throw-exceptions req true)
-          (throw response))
-        (if (instance? ExceptionInfo response)
-          (:object (.getData response))
-          (with-meta {:status 503
-                      :body {:error (.getMessage response)}}
-            {:error response})))
-      response)))
+  (let [raw-response (try (f) (catch Exception e e))
+        resp (if (instance? HystrixBadRequestException raw-response)
+               (get-thrown-object (.getCause raw-response))
+               raw-response)]
+    (when (:status resp)
+      ((http/wrap-exceptions (constantly resp)) req))
+    resp))
 
 (defn ^:private group-key [s]
   (HystrixCommandGroupKey$Factory/asKey (name s)))
@@ -68,43 +61,48 @@
 (defn ^:private log-error [command-name context]
   (let [message (format "Failed to complete %s %s" command-name (.getExecutionEvents context))]
     (if-let [exception (.getFailedExecutionException context)]
-      (error exception message)
-      (error message))))
+      (warn exception message)
+      (warn message))))
 
 (defn status-codes
   [& status]
-  (fn [v]
-    (if (instance? ExceptionInfo v)
-      (reduce #(or %1 (= %2 (:status (:object (.getData v))))) false status))))
+  (fn [req resp]
+    (reduce #(or %1 (= %2 (:status resp))) false status)))
 
-(defn status-4xx?
-  [v]
-  (if (instance? ExceptionInfo v)
-    (< 399 (:status (:object (.getData v))) 500)))
+(defn client-error?
+  [req resp]
+  (http/client-error? resp))
 
 (defn wrap-hystrix
   "Wrap a clj-http client request with hystrix features (but only if a
   command-key is present in the options map)."
   [f req]
   (if (not-empty (select-keys req hystrix-keys))
-    (let [bad-request-pred (req :hystrix/bad-request-pred)
+    (let [bad-request-pred (:hystrix/bad-request-pred req client-error?)
+          fallback (:hystrix/fallback-fn req default-fallback)
+          wrap-bad-request (fn [resp] (if (bad-request-pred req resp)
+                                       (throw (HystrixBadRequestException. "Ignored bad request"
+                                                                           (wrap {:object resp
+                                                                                  :message "Bad request pred"
+                                                                                  :stack-trace (stack-trace)})))
+                                           resp))
+          wrap-exception-reponse (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
           configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
                     (getFallback []
                       (MDC/setContextMap logging-context)
                       (log-error (:hystrix/command-key req) this)
-                      (if (:hystrix/fallback-fn req)
-                        ((:hystrix/fallback-fn req) req this)
-                        (default-fallback req this)))
+                      (let [exception (.getFailedExecutionException this)
+                            response (when exception (get-thrown-object exception))]
+                        (fallback req response)))
                     (run []
                       (MDC/setContextMap logging-context)
-                      (try
-                        (f (assoc req :throw-exceptions true))
-                        (catch Exception e
-                          (if (and bad-request-pred (bad-request-pred e))
-                            (throw (HystrixBadRequestException. "Ignoring exception" e))
-                            (throw e))))))]
+                      (-> req
+                          (assoc :throw-exceptions false)
+                          f
+                          wrap-bad-request
+                          wrap-exception-reponse)))]
       (handle-exception #(.execute command) req))
     (f req)))
 
