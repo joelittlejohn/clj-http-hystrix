@@ -31,7 +31,7 @@ Hystrix allows some failures to be marked as bad requests, that is, requests tha
 
 By default, all client errors (4xx family of response codes) are considered Hystrix bad requests and are not counted towards the failure metrics for a command. There are some useful predicates and predicate generators provided<sup>[2](https://github.com/joelittlejohn/clj-http-hystrix/blob/18a4f8f9636e531558a57557681c5d5861b27e42/src/clj_http_hystrix/core.clj#L67)</sup>.
 
-## Static vs dynamic options
+## Cached vs dynamic configuration
 
 Hystrix caches configuration for a command and hence there are limits to how this library can react to configuration options that vary dynamically. For a given command-key, the `:hystrix/timeout-ms` will be fixed on first use. This means it's a bad idea to reuse the `:hystrix/command-key` value in many parts of your app. When you want a new configuration, you should use a new `:hystrix/command-key` value.
 
