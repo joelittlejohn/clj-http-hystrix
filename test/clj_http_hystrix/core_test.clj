@@ -1,5 +1,6 @@
 (ns clj-http-hystrix.core-test
   (:require [clj-http-hystrix.core :refer :all]
+            [clj-http-hystrix.util :refer :all]
             [clj-http.client :as http]
             [clojure.java.io :refer [resource]]
             [clojure.tools.logging :refer [warn error]]
@@ -13,15 +14,12 @@
 (def url "http://localhost:8081/")
 
 (add-hook)
-
-(defn instance-of [class]
-  (fn [object]
-    (instance? class object)))
+(fake-mdc)
 
 (defn make-hystrix-call
-  [m]
+  [opts]
   (http/get url (merge {:hystrix/command-key (keyword (str (UUID/randomUUID)))}
-                       m)))
+                       opts)))
 
 (fact "hystrix wrapping with fallback"
       (rest-driven
@@ -114,76 +112,53 @@
                                           :throw-exceptions false})]
          (:status response) => 503)))
 
-(fact "hystrix wrapping does not cause the switch to go off if predicate is true - testing lower bound of status-4xx?"
-      :long
+(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions false"
       (rest-driven
        [{:method :GET
          :url "/"}
-        {:status 200}
+        {:status 400
+         :times 30}
         {:method :GET
+         :url "/"}
+        {:status 200}]
+       (let [command-key (keyword (str (UUID/randomUUID)))]
+         (dotimes [_ 30]
+           (http/get url {:throw-exceptions false
+                          :hystrix/command-key command-key
+                          :hystrix/bad-request-pred client-error?}) => (contains {:status 400}))
+         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
+         (http/get url {:throw-exceptions false
+                        :hystrix/command-key command-key}) => (contains {:status 200}))))
+
+(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions true"
+      (rest-driven
+       [{:method :GET
+         :url "/"}
+        {:status 400
+         :times 30}
+        {:method :GET
+         :url "/"}
+        {:status 200}]
+       (let [command-key (keyword (str (UUID/randomUUID)))]
+         (dotimes [_ 30]
+           (http/get url {:throw-exceptions true
+                          :hystrix/command-key command-key
+                          :hystrix/bad-request-pred client-error?}) => (throws ExceptionInfo))
+         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
+         (http/get url {:throw-exceptions false
+                        :hystrix/command-key command-key}) => (contains {:status 200}))))
+
+(fact "errors will cause circuit to break if bad-request-pred is false"
+      (rest-driven
+       [{:method :GET
          :url "/"}
         {:status 400
          :times 30}]
        (let [command-key (keyword (str (UUID/randomUUID)))]
-         (http/get url {:throw-exceptions false
-                        :hystrix/command-key command-key
-                        :hystrix/bad-request-pred client-error?})
-         (Thread/sleep 3000)
-         (doseq [x (range 29)]
+         (dotimes [_ 30]
            (http/get url {:throw-exceptions false
                           :hystrix/command-key command-key
-                          :hystrix/bad-request-pred client-error?}))
-         (-> (http/get url {:throw-exceptions false
-                            :hystrix/command-key command-key
-                            :hystrix/bad-request-pred client-error?})
-             :status) => 400)))
-
-(fact "hystrix wrapping does not cause the switch to go off if predicate is true, but still throw exception - testing upper bound of status-4xx?"
-      :long
-      (rest-driven
-       [{:method :GET
-         :url "/"}
-        {:status 200}
-        {:method :GET
-         :url "/"}
-        {:status 499
-         :times 30}]
-       (let [command-key (keyword (str (UUID/randomUUID)))]
-         (try (http/get url {:throw-exceptions true
-                             :hystrix/command-key command-key
-                             :hystrix/bad-request-pred client-error?})
-              (catch Exception e))
-         (Thread/sleep 3000)
-         (doseq [x (range 29)]
-           (try (http/get url {:throw-exceptions true
-                               :hystrix/command-key command-key
-                               :hystrix/bad-request-pred client-error?})
-                (catch Exception e)))
-         (http/get url {:throw-exceptions true
-                        :hystrix/command-key command-key
-                        :hystrix/bad-request-pred client-error?})
-         => (throws ExceptionInfo))))
-
-(fact "hystrix wrapping does not cause the switch to go off if predicate is true - test for specific status code"
-      :long
-      (rest-driven
-       [{:method :GET
-         :url "/"}
-        {:status 200}
-        {:method :GET
-         :url "/"}
-        {:status 404
-         :times 30}]
-       (let [command-key (keyword (str (UUID/randomUUID)))]
+                          :hystrix/bad-request-pred (constantly false)}) => (contains {:status 400}))
+         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
-                        :hystrix/command-key command-key
-                        :hystrix/bad-request-pred (status-codes 404)})
-         (Thread/sleep 3000)
-         (doseq [x (range 29)]
-           (http/get url {:throw-exceptions false
-                          :hystrix/command-key command-key
-                          :hystrix/bad-request-pred (status-codes 404)}))
-         (-> (http/get url {:throw-exceptions false
-                            :hystrix/command-key command-key
-                            :hystrix/bad-request-pred (status-codes 404)})
-             :status) => 404)))
+                        :hystrix/command-key command-key}) => (contains {:status 503}))))
