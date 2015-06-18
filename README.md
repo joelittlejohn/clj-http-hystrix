@@ -1,4 +1,4 @@
-# clj-http-hystrix [![Build Status](https://travis-ci.org/joelittlejohn/clj-http-hystrix.svg?branch=master)](https://travis-ci.org/joelittlejohn/clj-http-hystrix)
+# clj-http-hystrix [![Build Status](https://travis-ci.org/joelittlejohn/clj-http-hystrix.svg?branch=master)](https://travis-ci.org/joelittlejohn/clj-http-hystrix) [![Coverage Status](https://coveralls.io/repos/joelittlejohn/clj-http-hystrix/badge.svg?branch=master)](https://coveralls.io/r/joelittlejohn/clj-http-hystrix?branch=master)
 
 ![latest version](https://clojars.org/clj-http-hystrix/latest-version.svg)
 
