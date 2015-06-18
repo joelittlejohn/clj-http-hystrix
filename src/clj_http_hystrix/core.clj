@@ -65,14 +65,15 @@
       (warn message))))
 
 (defn status-codes
-  "Create a predicate that returns true whenever one of the given 
+  "Create a predicate that returns true whenever one of the given
   status codes is present"
-  [& status]
-  (fn [req resp]
-    (reduce #(or %1 (= %2 (:status resp))) false status)))
+  [& status-codes]
+  (let [status-codes (set status-codes)]
+    (fn [req resp]
+      (contains? status-codes (:status resp)))))
 
 (defn client-error?
-  "Returns true when the response has one of the 4xx family of status 
+  "Returns true when the response has one of the 4xx family of status
   codes"
   [req resp]
   (http/client-error? resp))

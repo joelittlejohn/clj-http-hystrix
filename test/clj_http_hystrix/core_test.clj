@@ -126,7 +126,7 @@
            (http/get url {:throw-exceptions false
                           :hystrix/command-key command-key
                           :hystrix/bad-request-pred client-error?}) => (contains {:status 400}))
-         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
+         (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 200}))))
 
@@ -144,7 +144,7 @@
            (http/get url {:throw-exceptions true
                           :hystrix/command-key command-key
                           :hystrix/bad-request-pred client-error?}) => (throws ExceptionInfo))
-         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
+         (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 200}))))
 
@@ -159,6 +159,15 @@
            (http/get url {:throw-exceptions false
                           :hystrix/command-key command-key
                           :hystrix/bad-request-pred (constantly false)}) => (contains {:status 400}))
-         (Thread/sleep 1000) ;sleep to wait for Hystrix health snapshot
+         (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 503}))))
+
+(fact "status-codes predicate matches only given status codes"
+      (let [predicate (status-codes 100 200 300)]
+        (predicate {} {:status 100}) => true
+        (predicate {} {:status 200}) => true
+        (predicate {} {:status 300}) => true
+        (predicate {} {:status 101}) => false
+        (predicate {} {:status 202}) => false
+        (predicate {} {:status 299}) => false))
