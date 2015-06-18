@@ -19,5 +19,6 @@
 
   :profiles {:dev {:dependencies [[midje "1.6.3"]
                                   [rest-cljer "0.1.21" :exclusions [clj-http]]]
-                   :plugins [[lein-environ "1.0.0"]
+                   :plugins [[lein-cloverage "1.0.2"]
+                             [lein-environ "1.0.0"]
                              [lein-midje "3.1.1"]]}})
