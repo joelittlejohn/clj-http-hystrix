@@ -27,7 +27,7 @@ Any values not supplied will be set to their default values as above. Requests w
 
 ## Bad requests
 
-Hystrix allows some failures to be marked as bad requests, that is, requests that have failed because of a badly formed request rather than an error in the downstream service<sup>[1](https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation)</sup>. clj-http-hystrix allows a predicate to be supplied under the `:hystrix/bad-request-pred` key, and if this predicate returns `true` when given a response exception, then the failure will be considered a 'bad request' (and not counted towards the failure metrics for a command).
+Hystrix allows some failures to be marked as bad requests, that is, requests that have failed because of a badly formed request rather than an error in the downstream service<sup>[1](https://github.com/Netflix/Hystrix/wiki/How-To-Use#error-propagation)</sup>. clj-http-hystrix allows a predicate to be supplied under the `:hystrix/bad-request-pred` key, and if this predicate returns `true` for a given request & response, then the failure will be considered a 'bad request' (and not counted towards the failure metrics for a command).
 
 By default, all client errors (4xx family of response codes) are considered Hystrix bad requests and are not counted towards the failure metrics for a command. There are some useful predicates and predicate generators provided<sup>[2](https://github.com/joelittlejohn/clj-http-hystrix/blob/18a4f8f9636e531558a57557681c5d5861b27e42/src/clj_http_hystrix/core.clj#L67)</sup>.
 
