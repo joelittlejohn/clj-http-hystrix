@@ -43,7 +43,7 @@
   "Create a configurator that can configure the hystrix according to the
   declarative config (or some sensible defaults)"
   [config]
-  (let [timeout (:hystrix/timeout-ms config 600)
+  (let [timeout (:hystrix/timeout-ms config 1000)
         group   (:hystrix/group-key config :default)
         threads (:hystrix/threads config 10)
         command-configurator (doto (HystrixCommandProperties/Setter)
