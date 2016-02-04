@@ -1,11 +1,15 @@
 (ns clj-http-hystrix.core
   (:require [clj-http.client :as http]
-            [clojure.set :as set]
             [clojure.tools.logging :refer [warn error]]
             [robert.hooke :as hooke]
             [slingshot.slingshot :refer [get-thrown-object]]
             [slingshot.support :refer [wrap stack-trace]])
-  (:import [com.netflix.hystrix HystrixCommand HystrixThreadPoolProperties HystrixCommandProperties HystrixCommand$Setter HystrixCommandGroupKey$Factory HystrixCommandKey$Factory]
+  (:import [com.netflix.hystrix HystrixCommand
+                                HystrixThreadPoolProperties
+                                HystrixCommandProperties
+                                HystrixCommand$Setter
+                                HystrixCommandGroupKey$Factory
+                                HystrixCommandKey$Factory]
            [com.netflix.hystrix.exception HystrixBadRequestException]
            [org.slf4j MDC]))
 
@@ -25,7 +29,7 @@
 
 (defn ^:private handle-exception
   [f req]
-  (let [raw-response (try (f) (catch Exception e e))
+  (let [^Exception raw-response (try (f) (catch Exception e e))
         resp (if (instance? HystrixBadRequestException raw-response)
                (get-thrown-object (.getCause raw-response))
                raw-response)]
@@ -58,7 +62,7 @@
         (.andCommandPropertiesDefaults command-configurator)
         (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
 
-(defn ^:private log-error [command-name context]
+(defn ^:private log-error [command-name ^HystrixCommand context]
   (let [message (format "Failed to complete %s %s" command-name (.getExecutionEvents context))]
     (if-let [exception (.getFailedExecutionException context)]
       (warn exception message)
@@ -92,13 +96,13 @@
                                                                                   :stack-trace (stack-trace)})))
                                            resp))
           wrap-exception-reponse (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
-          configurator (configurator req)
+          ^HystrixCommand$Setter configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
                     (getFallback []
                       (MDC/setContextMap logging-context)
                       (log-error (:hystrix/command-key req) this)
-                      (let [exception (.getFailedExecutionException this)
+                      (let [exception (.getFailedExecutionException ^HystrixCommand this)
                             response (when exception (get-thrown-object exception))]
                         (fallback req response)))
                     (run []
