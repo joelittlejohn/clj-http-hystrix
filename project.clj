@@ -1,4 +1,4 @@
-(defproject clj-http-hystrix "0.1.5-SNAPSHOT"
+(defproject clj-http-hystrix "0.1.5"
 
   :description "A Clojure library to wrap clj-http requests as hystrix commands"
   :url "https://github.com/joelittlejohn/clj-http-hystrix"
