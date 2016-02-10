@@ -15,12 +15,15 @@ When you start your app, add:
 Whenever you make an http request, add one or more of the hystrix-clj options to your options map:
 
 ```clj
-(http/get "http://www.google.com" {:hystrix/command-key      :default
-                                   :hystrix/fallback-fn      default-fallback
-                                   :hystrix/group-key        :default
-                                   :hystrix/threads          10
-                                   :hystrix/queue-size       5
-                                   :hystrix/timeout-ms       1000
+(http/get "http://www.google.com" {:hystrix/command-key             :default
+                                   :hystrix/fallback-fn             default-fallback
+                                   :hystrix/group-key               :default
+                                   :hystrix/threads                 10
+                                   :hystrix/queue-size              5
+                                   :hystrix/timeout-ms              1000
+                                   :hystrix/breaker-request-volume  20
+                                   :hystrix/breaker-error-percent   50
+                                   :hystrix/breaker-sleep-window-ms 5000
                                    :hystrix/bad-request-pred client-error?}}
 ```
 Any values not supplied will be set to their default values as above. Requests with no Hystrix-related keys won't use Hystrix.
