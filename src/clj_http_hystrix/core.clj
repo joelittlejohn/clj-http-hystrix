@@ -20,6 +20,9 @@
     :hystrix/threads
     :hystrix/queue-size
     :hystrix/timeout-ms
+    :hystrix/breaker-request-volume
+    :hystrix/breaker-error-percent
+    :hystrix/breaker-sleep-window-ms
     :hystrix/bad-request-pred})
 
 (defn default-fallback [req resp]
