@@ -66,10 +66,10 @@
                                    (.withCoreSize threads)
                                    (.withMaxQueueSize (:hystrix/queue-size config 5))
                                    (.withQueueSizeRejectionThreshold (:hystrix/queue-size config 5)))]
-    (-> (HystrixCommand$Setter/withGroupKey (group-key group))
-        (.andCommandKey (command-key (:hystrix/command-key config :default)))
-        (.andCommandPropertiesDefaults command-configurator)
-        (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
+    (doto (HystrixCommand$Setter/withGroupKey (group-key group))
+      (.andCommandKey (command-key (:hystrix/command-key config :default)))
+      (.andCommandPropertiesDefaults command-configurator)
+      (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
 
 (defn ^:private log-error [command-name ^HystrixCommand context]
   (let [message (format "Failed to complete %s %s" command-name (.getExecutionEvents context))]
@@ -104,7 +104,7 @@
                                                                                   :message "Bad request pred"
                                                                                   :stack-trace (stack-trace)})))
                                            resp))
-          wrap-exception-reponse (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
+          wrap-exception-response (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
           ^HystrixCommand$Setter configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
@@ -120,7 +120,7 @@
                           (assoc :throw-exceptions false)
                           f
                           wrap-bad-request
-                          wrap-exception-reponse)))]
+                          wrap-exception-response)))]
       (handle-exception #(.execute command) req))
     (f req)))
 
