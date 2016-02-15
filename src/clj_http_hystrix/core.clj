@@ -121,8 +121,9 @@
       (handle-exception #(.execute command) req))
     (f req)))
 
-(defn add-hook []
+(defn add-hook
   "Activate clj-http-hystrix to wrap all clj-http client requests as
   hystrix commands."
-  (when (not (some-> (meta http/request) :robert.hooke/hooks deref (contains? #'wrap-hystrix)))
+  []
+  (when-not (some-> (meta http/request) :robert.hooke/hooks deref (contains? #'wrap-hystrix))
     (hooke/add-hook #'http/request #'wrap-hystrix)))
