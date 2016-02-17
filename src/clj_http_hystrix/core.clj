@@ -20,6 +20,9 @@
     :hystrix/threads
     :hystrix/queue-size
     :hystrix/timeout-ms
+    :hystrix/breaker-request-volume
+    :hystrix/breaker-error-percent
+    :hystrix/breaker-sleep-window-ms
     :hystrix/bad-request-pred})
 
 (defn default-fallback [req resp]
@@ -63,10 +66,10 @@
                                    (.withCoreSize threads)
                                    (.withMaxQueueSize (:hystrix/queue-size config 5))
                                    (.withQueueSizeRejectionThreshold (:hystrix/queue-size config 5)))]
-    (-> (HystrixCommand$Setter/withGroupKey (group-key group))
-        (.andCommandKey (command-key (:hystrix/command-key config :default)))
-        (.andCommandPropertiesDefaults command-configurator)
-        (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
+    (doto (HystrixCommand$Setter/withGroupKey (group-key group))
+      (.andCommandKey (command-key (:hystrix/command-key config :default)))
+      (.andCommandPropertiesDefaults command-configurator)
+      (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
 
 (defn ^:private log-error [command-name ^HystrixCommand context]
   (let [message (format "Failed to complete %s %s" command-name (.getExecutionEvents context))]
@@ -101,7 +104,7 @@
                                                                                   :message "Bad request pred"
                                                                                   :stack-trace (stack-trace)})))
                                            resp))
-          wrap-exception-reponse (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
+          wrap-exception-response (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
           ^HystrixCommand$Setter configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
@@ -117,12 +120,13 @@
                           (assoc :throw-exceptions false)
                           f
                           wrap-bad-request
-                          wrap-exception-reponse)))]
+                          wrap-exception-response)))]
       (handle-exception #(.execute command) req))
     (f req)))
 
-(defn add-hook []
+(defn add-hook
   "Activate clj-http-hystrix to wrap all clj-http client requests as
   hystrix commands."
-  (when (not (some-> (meta http/request) :robert.hooke/hooks deref (contains? #'wrap-hystrix)))
+  []
+  (when-not (some-> (meta http/request) :robert.hooke/hooks deref (contains? #'wrap-hystrix))
     (hooke/add-hook #'http/request #'wrap-hystrix)))
