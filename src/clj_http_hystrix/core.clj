@@ -34,7 +34,7 @@
       ((http/wrap-exceptions (constantly resp)) req))
     resp))
 
-(def ^:private ^:const hystrix-defaults
+(def ^:private ^:const hystrix-base-configuration
   {:hystrix/command-key             :default
    :hystrix/fallback-fn             default-fallback
    :hystrix/group-key               :default
@@ -47,7 +47,10 @@
    :hystrix/bad-request-pred        client-error?})
 
 (def ^:private hystrix-keys
-  (keys hystrix-defaults))
+  (keys hystrix-base-configuration))
+
+(defn ^:private hystrix-defaults [defaults]
+  (merge hystrix-base-configuration (select-keys defaults hystrix-keys)))
 
 (defn ^:private group-key [s]
   (HystrixCommandGroupKey$Factory/asKey (name s)))
@@ -96,42 +99,64 @@
     (fn [req resp]
       (contains? status-codes (:status resp)))))
 
-(defn wrap-hystrix
-  "Wrap a clj-http client request with hystrix features (but only if a
-  command-key is present in the options map)."
-  [f req]
-  (if (not-empty (select-keys req hystrix-keys))
-    (let [req (merge hystrix-defaults req)
-          bad-request-pred (:hystrix/bad-request-pred req)
-          fallback (:hystrix/fallback-fn req)
-          wrap-bad-request (fn [resp] (if (bad-request-pred req resp)
-                                       (throw (HystrixBadRequestException. "Ignored bad request"
-                                                                           (wrap {:object resp
-                                                                                  :message "Bad request pred"
-                                                                                  :stack-trace (stack-trace)})))
-                                           resp))
-          wrap-exception-response (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
-          configurator (configurator req)
-          logging-context (or (MDC/getCopyOfContextMap) {})
-          command (proxy [HystrixCommand] [configurator]
-                    (getFallback []
-                      (MDC/setContextMap logging-context)
-                      (log-error (:hystrix/command-key req) this)
-                      (let [exception (.getFailedExecutionException ^HystrixCommand this)
-                            response (when exception (get-thrown-object exception))]
-                        (fallback req response)))
-                    (run []
-                      (MDC/setContextMap logging-context)
-                      (-> req
-                          (assoc :throw-exceptions false)
-                          f
-                          wrap-bad-request
-                          wrap-exception-response)))]
-      (handle-exception #(.execute command) req))
-    (f req)))
+(defn hystrix-wrapper
+  "Create a function that wraps clj-http client requests with hystrix features
+  (but only if a hystrix key is present in the options map).
+  Accepts a possibly empty map of default hystrix values that will be used as
+  fallback configuration for each hystrix request."
+  [custom-defaults]
+  (let [defaults (hystrix-defaults custom-defaults)]
+    (fn [f req]
+      (if (not-empty (select-keys req hystrix-keys))
+        (let [req (merge defaults req)
+              bad-request-pred (:hystrix/bad-request-pred req)
+              fallback (:hystrix/fallback-fn req)
+              wrap-bad-request (fn [resp] (if (bad-request-pred req resp)
+                                            (throw
+                                              (HystrixBadRequestException.
+                                                "Ignored bad request"
+                                                (wrap {:object resp
+                                                       :message "Bad request pred"
+                                                       :stack-trace (stack-trace)})))
+                                            resp))
+              wrap-exception-response (fn [resp]
+                                        ((http/wrap-exceptions (constantly resp))
+                                         (assoc req :throw-exceptions true)))
+              configurator (configurator req)
+              logging-context (or (MDC/getCopyOfContextMap) {})
+              command (proxy [HystrixCommand] [configurator]
+                        (getFallback []
+                          (MDC/setContextMap logging-context)
+                          (log-error (:hystrix/command-key req) this)
+                          (let [exception (.getFailedExecutionException ^HystrixCommand this)
+                                response (when exception (get-thrown-object exception))]
+                            (fallback req response)))
+                        (run []
+                          (MDC/setContextMap logging-context)
+                          (-> req
+                              (assoc :throw-exceptions false)
+                              f
+                              wrap-bad-request
+                              wrap-exception-response)))]
+          (handle-exception #(.execute command) req))
+        (f req)))))
 
 (defn add-hook
   "Activate clj-http-hystrix to wrap all clj-http client requests as
-  hystrix commands."
+  hystrix commands.
+  Provide custom hystrix defaults by providing an optional defaults map:
+
+    ;; use clj-http-hystrix.core default configuration
+    (add-hook)
+
+    ;; 6 second timeout fallback, if not specified in request
+    (add-hook {:hystrix/timeout-ms 6000})
+  "
+  ([] (add-hook {}))
+  ([defaults]
+   (hooke/add-hook #'http/request ::wrap-hystrix (hystrix-wrapper defaults))))
+
+(defn remove-hook
+  "Deactivate clj-http-hystrix."
   []
-  (hooke/add-hook #'http/request #'wrap-hystrix))
+  (hooke/remove-hook #'http/request ::wrap-hystrix))

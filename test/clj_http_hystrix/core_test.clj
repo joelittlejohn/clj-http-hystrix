@@ -178,8 +178,35 @@
 
 (fact "add-hook can be safely called more than once"
       (count (get-hooks)) => 1
-      (get (get-hooks) #'wrap-hystrix) => #'wrap-hystrix
+      (contains? (get-hooks) :clj-http-hystrix.core/wrap-hystrix) => true
       ;call add-hook a few more times and ensure only one hook is present
-      (add-hook), (add-hook), (add-hook)
+      (add-hook), (add-hook)
       (count (get-hooks)) => 1
-      (get (get-hooks) #'wrap-hystrix) => #'wrap-hystrix)
+      (contains? (get-hooks) :clj-http-hystrix.core/wrap-hystrix) => true)
+
+(fact "remove-hook removes clj-http-hystrix hook"
+      (count (get-hooks)) => 1
+      (contains? (get-hooks) :clj-http-hystrix.core/wrap-hystrix) => true
+      (remove-hook)
+      (get-hooks) => nil
+      ;can be called more than once
+      (remove-hook), (remove-hook)
+      (get-hooks) => nil
+      ;restore hook for additional testing
+      (add-hook))
+
+(fact "add-hook with user-defaults will override base configuration, but not call configuration"
+      (rest-driven
+        [{:method :GET
+          :url "/"}
+         {:status 500
+          :times 3}]
+        (make-hystrix-call {})
+        => (throws clojure.lang.ExceptionInfo "clj-http: status 500")
+        ;set custom default for fallback-fn
+        (remove-hook)
+        (add-hook {:hystrix/fallback-fn (constantly "bar")})
+        (make-hystrix-call {}) => "bar"
+        (make-hystrix-call {:hystrix/fallback-fn (constantly "baz")}) => "baz")
+      (remove-hook)
+      (add-hook))
