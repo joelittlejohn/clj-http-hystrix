@@ -26,7 +26,21 @@ Whenever you make an http request, add one or more of the hystrix-clj options to
                                    :hystrix/breaker-sleep-window-ms 5000
                                    :hystrix/bad-request-pred        client-error?})
 ```
-Any values not supplied will be set to their default values as above. Requests with no Hystrix-related keys won't use Hystrix.
+
+Requests without any `:hystrix/...` keys won't use Hystrix. Any values not supplied will be set to their default values as above. Custom default values can also be specified when registering with `add-hook`:
+
+```clj
+(clj-http-hystrix.core/add-hook {:hystrix/timeout-ms 2500
+                                 :hystrix/queue-size 12})
+
+;; now each request will fallback to these if not supplied
+(http/get "http://www.google.com" {:hystrix/command-key :google})
+;;=> {:hystrix/command-key :google
+;;    :hystrix/timeout-ms 2500
+;;    :hystrix/queue-size 12
+;;    ... (rest are clj-http-hystrix defaults)
+;;    }
+```
 
 ## Bad requests
 

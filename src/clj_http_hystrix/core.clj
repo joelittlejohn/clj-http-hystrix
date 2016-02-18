@@ -111,14 +111,15 @@
         (let [req (merge defaults req)
               bad-request-pred (:hystrix/bad-request-pred req)
               fallback (:hystrix/fallback-fn req)
-              wrap-bad-request (fn [resp] (if (bad-request-pred req resp)
-                                            (throw
-                                              (HystrixBadRequestException.
-                                                "Ignored bad request"
-                                                (wrap {:object resp
-                                                       :message "Bad request pred"
-                                                       :stack-trace (stack-trace)})))
-                                            resp))
+              wrap-bad-request (fn [resp]
+                                 (if (bad-request-pred req resp)
+                                   (throw
+                                     (HystrixBadRequestException.
+                                       "Ignored bad request"
+                                       (wrap {:object resp
+                                              :message "Bad request pred"
+                                              :stack-trace (stack-trace)})))
+                                   resp))
               wrap-exception-response (fn [resp]
                                         ((http/wrap-exceptions (constantly resp))
                                          (assoc req :throw-exceptions true)))
