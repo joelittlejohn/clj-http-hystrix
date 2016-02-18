@@ -24,7 +24,7 @@ Whenever you make an http request, add one or more of the hystrix-clj options to
                                    :hystrix/breaker-request-volume  20
                                    :hystrix/breaker-error-percent   50
                                    :hystrix/breaker-sleep-window-ms 5000
-                                   :hystrix/bad-request-pred        client-error?}}
+                                   :hystrix/bad-request-pred        client-error?})
 ```
 Any values not supplied will be set to their default values as above. Requests with no Hystrix-related keys won't use Hystrix.
 

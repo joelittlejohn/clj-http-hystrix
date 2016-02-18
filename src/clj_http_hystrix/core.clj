@@ -13,22 +13,16 @@
            [com.netflix.hystrix.exception HystrixBadRequestException]
            [org.slf4j MDC]))
 
-(def ^:private ^:const hystrix-keys
-  #{:hystrix/fallback-fn
-    :hystrix/group-key
-    :hystrix/command-key
-    :hystrix/threads
-    :hystrix/queue-size
-    :hystrix/timeout-ms
-    :hystrix/breaker-request-volume
-    :hystrix/breaker-error-percent
-    :hystrix/breaker-sleep-window-ms
-    :hystrix/bad-request-pred})
-
 (defn default-fallback [req resp]
   (if (:status resp)
     resp
     {:status 503}))
+
+(defn client-error?
+  "Returns true when the response has one of the 4xx family of status
+  codes"
+  [req resp]
+  (http/client-error? resp))
 
 (defn ^:private handle-exception
   [f req]
@@ -40,6 +34,21 @@
       ((http/wrap-exceptions (constantly resp)) req))
     resp))
 
+(def ^:private ^:const hystrix-defaults
+  {:hystrix/command-key             :default
+   :hystrix/fallback-fn             default-fallback
+   :hystrix/group-key               :default
+   :hystrix/threads                 10
+   :hystrix/queue-size              5
+   :hystrix/timeout-ms              1000
+   :hystrix/breaker-request-volume  20
+   :hystrix/breaker-error-percent   50
+   :hystrix/breaker-sleep-window-ms 5000
+   :hystrix/bad-request-pred        client-error?})
+
+(def ^:private hystrix-keys
+  (keys hystrix-defaults))
+
 (defn ^:private group-key [s]
   (HystrixCommandGroupKey$Factory/asKey (name s)))
 
@@ -49,13 +58,15 @@
 (defn ^:private configurator
   "Create a configurator that can configure the hystrix according to the
   declarative config (or some sensible defaults)"
-  [config]
-  (let [timeout (:hystrix/timeout-ms config 1000)
-        group   (:hystrix/group-key config :default)
-        threads (:hystrix/threads config 10)
-        request-volume (:hystrix/breaker-request-volume config 20)
-        error-percent (:hystrix/breaker-error-percent config 50)
-        sleep-window (:hystrix/breaker-sleep-window-ms config 5000)
+  ^HystrixCommand$Setter [config]
+  (let [{group :hystrix/group-key
+         command :hystrix/command-key
+         timeout :hystrix/timeout-ms
+         threads :hystrix/threads
+         queue-size :hystrix/queue-size
+         sleep-window :hystrix/breaker-sleep-window-ms
+         error-percent :hystrix/breaker-error-percent
+         request-volume :hystrix/breaker-request-volume} config
         command-configurator (doto (HystrixCommandProperties/Setter)
                                (.withExecutionIsolationThreadTimeoutInMilliseconds timeout)
                                (.withCircuitBreakerRequestVolumeThreshold request-volume)
@@ -64,10 +75,10 @@
                                (.withMetricsRollingPercentileEnabled false))
         thread-pool-configurator (doto (HystrixThreadPoolProperties/Setter)
                                    (.withCoreSize threads)
-                                   (.withMaxQueueSize (:hystrix/queue-size config 5))
-                                   (.withQueueSizeRejectionThreshold (:hystrix/queue-size config 5)))]
+                                   (.withMaxQueueSize queue-size)
+                                   (.withQueueSizeRejectionThreshold queue-size))]
     (doto (HystrixCommand$Setter/withGroupKey (group-key group))
-      (.andCommandKey (command-key (:hystrix/command-key config :default)))
+      (.andCommandKey (command-key command))
       (.andCommandPropertiesDefaults command-configurator)
       (.andThreadPoolPropertiesDefaults thread-pool-configurator))))
 
@@ -85,19 +96,14 @@
     (fn [req resp]
       (contains? status-codes (:status resp)))))
 
-(defn client-error?
-  "Returns true when the response has one of the 4xx family of status
-  codes"
-  [req resp]
-  (http/client-error? resp))
-
 (defn wrap-hystrix
   "Wrap a clj-http client request with hystrix features (but only if a
   command-key is present in the options map)."
   [f req]
   (if (not-empty (select-keys req hystrix-keys))
-    (let [bad-request-pred (:hystrix/bad-request-pred req client-error?)
-          fallback (:hystrix/fallback-fn req default-fallback)
+    (let [req (merge hystrix-defaults req)
+          bad-request-pred (:hystrix/bad-request-pred req)
+          fallback (:hystrix/fallback-fn req)
           wrap-bad-request (fn [resp] (if (bad-request-pred req resp)
                                        (throw (HystrixBadRequestException. "Ignored bad request"
                                                                            (wrap {:object resp
@@ -105,7 +111,7 @@
                                                                                   :stack-trace (stack-trace)})))
                                            resp))
           wrap-exception-response (fn [resp] ((http/wrap-exceptions (constantly resp)) (assoc req :throw-exceptions true)))
-          ^HystrixCommand$Setter configurator (configurator req)
+          configurator (configurator req)
           logging-context (or (MDC/getCopyOfContextMap) {})
           command (proxy [HystrixCommand] [configurator]
                     (getFallback []
