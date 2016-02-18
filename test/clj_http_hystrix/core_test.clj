@@ -4,6 +4,7 @@
             [clj-http.client :as http]
             [clojure.java.io :refer [resource]]
             [clojure.tools.logging :refer [warn error]]
+            [robert.hooke :as hooke]
             [rest-cljer.core :refer [rest-driven]]
             [midje.sweet :refer :all])
   (:import [java.net SocketTimeoutException]
@@ -171,3 +172,14 @@
         (predicate {} {:status 101}) => false
         (predicate {} {:status 202}) => false
         (predicate {} {:status 299}) => false))
+
+(defn get-hooks []
+  (some-> http/request meta :robert.hooke/hooks deref))
+
+(fact "add-hook can be safely called more than once"
+      (count (get-hooks)) => 1
+      (get (get-hooks) #'wrap-hystrix) => #'wrap-hystrix
+      ;call add-hook a few more times and ensure only one hook is present
+      (add-hook), (add-hook), (add-hook)
+      (count (get-hooks)) => 1
+      (get (get-hooks) #'wrap-hystrix) => #'wrap-hystrix)
