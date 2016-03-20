@@ -12,7 +12,7 @@ When you start your app, add:
 (clj-http-hystrix.core/add-hook)
 ```
 
-Whenever you make an http request, add one or more of the hystrix-clj options to your options map:
+Whenever you make an http request, add **one or more** of the hystrix-clj options to your options map, e.g.:
 
 ```clj
 (http/get "http://www.google.com" {:hystrix/command-key             :default
@@ -27,19 +27,13 @@ Whenever you make an http request, add one or more of the hystrix-clj options to
                                    :hystrix/bad-request-pred        client-error?})
 ```
 
-Requests without any `:hystrix/...` keys won't use Hystrix. Any values not supplied will be set to their default values as above. Custom default values can also be specified when registering with `add-hook`:
+Requests without any `:hystrix/...` keys won't use Hystrix. If you include **at least one** `:hystrix/...` key then any keys not specified will take the above (default) values.
+
+Custom default values can be specified when registering with `add-hook`. Any keys you supply will override the defaults shown above:
 
 ```clj
 (clj-http-hystrix.core/add-hook {:hystrix/timeout-ms 2500
                                  :hystrix/queue-size 12})
-
-;; now each request will fallback to these if not supplied
-(http/get "http://www.google.com" {:hystrix/command-key :google})
-;;=> {:hystrix/command-key :google
-;;    :hystrix/timeout-ms 2500
-;;    :hystrix/queue-size 12
-;;    ... (rest are clj-http-hystrix defaults)
-;;    }
 ```
 
 ## Bad requests
