@@ -210,3 +210,25 @@
         (make-hystrix-call {:hystrix/fallback-fn (constantly "baz")}) => "baz")
       (remove-hook)
       (add-hook))
+
+(fact "wrap-hystrix enables clj-http-hystrix to be incorporated as a middleware"
+      (remove-hook)
+      ;verify hystrix is enabled by exceeding the default timeout (1000 ms)
+      (http/with-additional-middleware [wrap-hystrix]
+        (rest-driven
+          [{:method :GET
+            :url "/"}
+           {:status 200
+            :after 1500}]
+          (make-hystrix-call {})
+          => (throws clojure.lang.ExceptionInfo "clj-http: status 503")))
+
+      ;verify custom defaults are supported
+      (http/with-additional-middleware
+        [(partial wrap-hystrix {:hystrix/fallback-fn (constantly {:status 404})})]
+        (rest-driven
+          [{:method :GET
+            :url "/"}
+           {:status 500}]
+          (make-hystrix-call {})
+          => (throws clojure.lang.ExceptionInfo "clj-http: status 404"))))

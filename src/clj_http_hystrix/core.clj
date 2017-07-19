@@ -161,3 +161,22 @@
   "Deactivate clj-http-hystrix."
   []
   (hooke/remove-hook #'http/request ::wrap-hystrix))
+
+(defn wrap-hystrix
+  "Middleware for adding hystrix to a clj-http client request.
+
+  Alternative to `add-hook`. Do not use both `wrap-hystrix` and `add-hook`.
+
+    ;; add wrap-hystrix to the middleware chain
+    (clj-http.client/with-additional-middleware [wrap-hystrix]
+      (clj-http.client/get ...))
+
+    ;; or if you want to provide your own defaults
+    (clj-http.client/with-additional-middleware [(partial wrap-hystrix {:hystrix/timeout-ms 6000})]
+      (clj-http.client/get ...))
+  "
+  ([client] (wrap-hystrix {} client))
+  ([defaults client]
+   (let [wrapper (hystrix-wrapper defaults)]
+     (fn [req]
+       (wrapper client req)))))
