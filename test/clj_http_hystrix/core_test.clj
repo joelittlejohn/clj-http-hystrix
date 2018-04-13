@@ -113,7 +113,7 @@
                                           :throw-exceptions false})]
          (:status response) => 503)))
 
-(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions false"
+(fact "errors will not cause circuit to break if client-error? is true, with :throw-exceptions false"
       (rest-driven
        [{:method :GET
          :url "/"}
@@ -125,13 +125,12 @@
        (let [command-key (keyword (str (UUID/randomUUID)))]
          (dotimes [_ 30]
            (http/get url {:throw-exceptions false
-                          :hystrix/command-key command-key
-                          :hystrix/bad-request-pred client-error?}) => (contains {:status 400}))
+                          :hystrix/command-key command-key}) => (contains {:status 400}))
          (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 200}))))
 
-(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions true"
+(fact "errors will not cause circuit to break if client-error? is true, with :throw-exceptions true"
       (rest-driven
        [{:method :GET
          :url "/"}
@@ -143,26 +142,10 @@
        (let [command-key (keyword (str (UUID/randomUUID)))]
          (dotimes [_ 30]
            (http/get url {:throw-exceptions true
-                          :hystrix/command-key command-key
-                          :hystrix/bad-request-pred client-error?}) => (throws ExceptionInfo))
+                          :hystrix/command-key command-key}) => (throws ExceptionInfo))
          (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 200}))))
-
-(fact "errors will cause circuit to break if bad-request-pred is false"
-      (rest-driven
-       [{:method :GET
-         :url "/"}
-        {:status 400
-         :times 30}]
-       (let [command-key (keyword (str (UUID/randomUUID)))]
-         (dotimes [_ 30]
-           (http/get url {:throw-exceptions false
-                          :hystrix/command-key command-key
-                          :hystrix/bad-request-pred (constantly false)}) => (contains {:status 400}))
-         (Thread/sleep 600) ;sleep to wait for Hystrix health snapshot
-         (http/get url {:throw-exceptions false
-                        :hystrix/command-key command-key}) => (contains {:status 503}))))
 
 (fact "status-codes predicate matches only given status codes"
       (let [predicate (status-codes 100 200 300)]
@@ -197,17 +180,17 @@
 
 (fact "add-hook with user-defaults will override base configuration, but not call configuration"
       (rest-driven
-        [{:method :GET
-          :url "/"}
-         {:status 500
-          :times 3}]
-        (make-hystrix-call {})
-        => (throws clojure.lang.ExceptionInfo "clj-http: status 500")
+       [{:method :GET
+         :url "/"}
+        {:status 500
+         :times 3}]
+       (make-hystrix-call {})
+       => (throws clojure.lang.ExceptionInfo "clj-http: status 500")
         ;set custom default for fallback-fn
-        (remove-hook)
-        (add-hook {:hystrix/fallback-fn (constantly "bar")})
-        (make-hystrix-call {}) => "bar"
-        (make-hystrix-call {:hystrix/fallback-fn (constantly "baz")}) => "baz")
+       (remove-hook)
+       (add-hook {:hystrix/fallback-fn (constantly "bar")})
+       (make-hystrix-call {}) => "bar"
+       (make-hystrix-call {:hystrix/fallback-fn (constantly "baz")}) => "baz")
       (remove-hook)
       (add-hook))
 
@@ -216,19 +199,19 @@
       ;verify hystrix is enabled by exceeding the default timeout (1000 ms)
       (http/with-additional-middleware [wrap-hystrix]
         (rest-driven
-          [{:method :GET
-            :url "/"}
-           {:status 200
-            :after 1500}]
-          (make-hystrix-call {})
-          => (throws clojure.lang.ExceptionInfo "clj-http: status 503")))
+         [{:method :GET
+           :url "/"}
+          {:status 200
+           :after 1500}]
+         (make-hystrix-call {})
+         => (throws clojure.lang.ExceptionInfo "clj-http: status 503")))
 
       ;verify custom defaults are supported
       (http/with-additional-middleware
         [(partial wrap-hystrix {:hystrix/fallback-fn (constantly {:status 404})})]
         (rest-driven
-          [{:method :GET
-            :url "/"}
-           {:status 500}]
-          (make-hystrix-call {})
-          => (throws clojure.lang.ExceptionInfo "clj-http: status 404"))))
+         [{:method :GET
+           :url "/"}
+          {:status 500}]
+         (make-hystrix-call {})
+         => (throws clojure.lang.ExceptionInfo "clj-http: status 404"))))

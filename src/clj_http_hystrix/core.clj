@@ -5,11 +5,11 @@
             [slingshot.slingshot :refer [get-thrown-object]]
             [slingshot.support :refer [wrap stack-trace]])
   (:import [com.netflix.hystrix HystrixCommand
-                                HystrixThreadPoolProperties
-                                HystrixCommandProperties
-                                HystrixCommand$Setter
-                                HystrixCommandGroupKey$Factory
-                                HystrixCommandKey$Factory]
+            HystrixThreadPoolProperties
+            HystrixCommandProperties
+            HystrixCommand$Setter
+            HystrixCommandGroupKey$Factory
+            HystrixCommandKey$Factory]
            [com.netflix.hystrix.exception HystrixBadRequestException]
            [org.slf4j MDC]))
 
@@ -43,8 +43,7 @@
    :hystrix/timeout-ms              1000
    :hystrix/breaker-request-volume  20
    :hystrix/breaker-error-percent   50
-   :hystrix/breaker-sleep-window-ms 5000
-   :hystrix/bad-request-pred        client-error?})
+   :hystrix/breaker-sleep-window-ms 5000})
 
 (def ^:private hystrix-keys
   (keys hystrix-base-configuration))
@@ -109,20 +108,10 @@
     (fn [f req]
       (if (not-empty (select-keys req hystrix-keys))
         (let [req (merge defaults req)
-              bad-request-pred (:hystrix/bad-request-pred req)
               fallback (:hystrix/fallback-fn req)
-              wrap-bad-request (fn [resp]
-                                 (if (bad-request-pred req resp)
-                                   (throw
-                                     (HystrixBadRequestException.
-                                       "Ignored bad request"
-                                       (wrap {:object resp
-                                              :message "Bad request pred"
-                                              :stack-trace (stack-trace)})))
-                                   resp))
               wrap-exception-response (fn [resp]
                                         ((http/wrap-exceptions (constantly resp))
-                                         (assoc req :throw-exceptions true)))
+                                         (assoc req :throw-exceptions (not (client-error? req resp)))))
               configurator (configurator req)
               logging-context (or (MDC/getCopyOfContextMap) {})
               command (proxy [HystrixCommand] [configurator]
@@ -137,7 +126,6 @@
                           (-> req
                               (assoc :throw-exceptions false)
                               f
-                              wrap-bad-request
                               wrap-exception-response)))]
           (handle-exception #(.execute command) req))
         (f req)))))
