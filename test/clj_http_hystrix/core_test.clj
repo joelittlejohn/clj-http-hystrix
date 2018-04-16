@@ -113,7 +113,7 @@
                                           :throw-exceptions false})]
          (:status response) => 503)))
 
-(fact "errors will not cause circuit to break if client-error? is true, with :throw-exceptions false"
+(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions false"
       (rest-driven
        [{:method :GET
          :url "/"}
@@ -130,7 +130,7 @@
          (http/get url {:throw-exceptions false
                         :hystrix/command-key command-key}) => (contains {:status 200}))))
 
-(fact "errors will not cause circuit to break if client-error? is true, with :throw-exceptions true"
+(fact "errors will not cause circuit to break if bad-request-pred is true, with :throw-exceptions true"
       (rest-driven
        [{:method :GET
          :url "/"}

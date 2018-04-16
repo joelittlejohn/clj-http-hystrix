@@ -43,7 +43,8 @@
    :hystrix/timeout-ms              1000
    :hystrix/breaker-request-volume  20
    :hystrix/breaker-error-percent   50
-   :hystrix/breaker-sleep-window-ms 5000})
+   :hystrix/breaker-sleep-window-ms 5000
+   :hystrix/bad-request-pred        client-error?})
 
 (def ^:private hystrix-keys
   (keys hystrix-base-configuration))
@@ -108,10 +109,11 @@
     (fn [f req]
       (if (not-empty (select-keys req hystrix-keys))
         (let [req (merge defaults req)
+              bad-request-pred (:hystrix/bad-request-pred req)
               fallback (:hystrix/fallback-fn req)
               wrap-exception-response (fn [resp]
                                         ((http/wrap-exceptions (constantly resp))
-                                         (assoc req :throw-exceptions (not (client-error? req resp)))))
+                                         (assoc req :throw-exceptions (not (bad-request-pred req resp)))))
               configurator (configurator req)
               logging-context (or (MDC/getCopyOfContextMap) {})
               command (proxy [HystrixCommand] [configurator]
