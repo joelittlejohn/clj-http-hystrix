@@ -5,10 +5,10 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
-  :dependencies [[clj-http "2.3.0"]
-                 [com.netflix.hystrix/hystrix-clj "1.4.23"]
-                 [org.clojure/clojure "1.8.0"]
-                 [org.clojure/tools.logging "0.3.1"]
+  :dependencies [[clj-http "3.8.0"]
+                 [com.netflix.hystrix/hystrix-clj "1.5.12"]
+                 [org.clojure/clojure "1.9.0"]
+                 [org.clojure/tools.logging "0.4.0"]
                  [robert/hooke "1.3.0"]
                  [slingshot "0.12.2"]]
 
