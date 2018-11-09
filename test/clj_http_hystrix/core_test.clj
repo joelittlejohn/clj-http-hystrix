@@ -50,6 +50,19 @@
                            :hystrix/fallback-fn (fn [& z] (into {} (MDC/getCopyOfContextMap)))})
        => (contains {"pickles" "preserve"})))
 
+(def ^:dynamic *bindable* :unbound)
+
+(fact "hystrix wrapping with fallback - preserves dynamic bindings"
+      (let [fallback (fn [& z] *bindable*)]
+        (rest-driven
+          [{:method :GET
+            :url "/"}
+           {:status 500}]
+          (binding [*bindable* :bound]
+            (make-hystrix-call {:throw-exceptions false
+                                :hystrix/fallback-fn fallback}))
+          => :bound)))
+
 (fact "hystrix wrapping return successful call"
       (rest-driven
        [{:method :GET
