@@ -99,6 +99,24 @@
     (fn [req resp]
       (contains? status-codes (:status resp)))))
 
+(defn- frame-setter
+  "Returns a function that can be called to set the thread binding frame
+  to the current thread binding frame."
+  []
+  (let [caller (Thread/currentThread)
+        frame (clojure.lang.Var/cloneThreadBindingFrame)]
+    (fn []
+      (when-not (identical? caller (Thread/currentThread))
+        (clojure.lang.Var/resetThreadBindingFrame frame)))))
+
+(defn- mdc-setter
+  "Returns a function that can be called to set the MDC to the current MDC."
+  []
+  (let [mdc (MDC/getCopyOfContextMap)]
+    (fn []
+      (when mdc
+        (MDC/setContextMap mdc)))))
+
 (defn hystrix-wrapper
   "Create a function that wraps clj-http client requests with hystrix features
   (but only if a hystrix key is present in the options map).
@@ -124,16 +142,19 @@
                                         ((http/wrap-exceptions (constantly resp))
                                          (assoc req :throw-exceptions true)))
               configurator (configurator req)
-              logging-context (or (MDC/getCopyOfContextMap) {})
+              set-frame (frame-setter)
+              set-mdc (mdc-setter)
               command (proxy [HystrixCommand] [configurator]
                         (getFallback []
-                          (MDC/setContextMap logging-context)
+                          (set-frame)
+                          (set-mdc)
                           (log-error (:hystrix/command-key req) this)
                           (let [exception (.getFailedExecutionException ^HystrixCommand this)
                                 response (when exception (get-thrown-object exception))]
                             (fallback req response)))
                         (run []
-                          (MDC/setContextMap logging-context)
+                          (set-frame)
+                          (set-mdc)
                           (-> req
                               (assoc :throw-exceptions false)
                               f
